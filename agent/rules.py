@@ -82,13 +82,27 @@ def validate_assignment(
         )
     
     # BLOCKING RULE 5: Check if drone is already assigned
-    if drone.get('current_assignment') and drone.get('current_assignment') != '–' and drone.get('current_assignment') != '-':
+    drone_assignment = str(drone.get('current_assignment', '')).strip()
+    # Consider empty, short non-alphanumeric strings, or 'None' as "not assigned"
+    is_drone_assigned = (
+        drone_assignment and 
+        len(drone_assignment) > 3 and 
+        drone_assignment not in ['None', 'none', 'null', 'NULL']
+    )
+    if is_drone_assigned:
         blocking_issues.append(
             f"Drone {drone.get('drone_id')} is already assigned to {drone.get('current_assignment')}"
         )
     
     # BLOCKING RULE 6: Check if pilot is already assigned (double-booking)
-    if pilot.get('current_assignment') and pilot.get('current_assignment') != '–' and pilot.get('current_assignment') != '-':
+    pilot_assignment = str(pilot.get('current_assignment', '')).strip()
+    # Consider empty, short non-alphanumeric strings, or 'None' as "not assigned"
+    is_pilot_assigned = (
+        pilot_assignment and 
+        len(pilot_assignment) > 3 and 
+        pilot_assignment not in ['None', 'none', 'null', 'NULL']
+    )
+    if is_pilot_assigned:
         blocking_issues.append(
             f"Pilot {pilot.get('name')} is already assigned to {pilot.get('current_assignment')}"
         )
