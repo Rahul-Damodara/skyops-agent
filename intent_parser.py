@@ -56,6 +56,15 @@ def _detect_action(query_lower: str) -> str:
     """
     Detect the intent action from the query.
     """
+    # Add new resource keywords
+    if any(word in query_lower for word in ['add', 'create', 'new', 'register']):
+        if any(word in query_lower for word in ['pilot', 'person', 'operator']):
+            return 'add_pilot'
+        elif any(word in query_lower for word in ['drone', 'uav', 'aircraft']):
+            return 'add_drone'
+        elif any(word in query_lower for word in ['mission', 'project', 'job', 'task']):
+            return 'add_mission'
+    
     # Urgent reassignment keywords
     if any(word in query_lower for word in ['urgent', 'emergency', 'reassign', 'move', 'transfer']):
         if any(word in query_lower for word in ['reassign', 'move', 'transfer', 'switch']):

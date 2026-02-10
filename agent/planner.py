@@ -13,6 +13,9 @@ from typing import Dict, List, Optional
 # - query_info
 # - assign_mission
 # - urgent_reassign
+# - add_pilot
+# - add_drone
+# - add_mission
 
 
 def plan(intent: Dict) -> List[Dict]:
@@ -21,7 +24,7 @@ def plan(intent: Dict) -> List[Dict]:
     
     Args:
         intent: Dictionary containing:
-            - action: The intent type (query_info, assign_mission, urgent_reassign)
+            - action: The intent type (query_info, assign_mission, urgent_reassign, add_pilot, add_drone, add_mission)
             - entities: Extracted entities (pilot_name, drone_id, mission_id, etc.)
             - parameters: Additional parameters for the action
     
@@ -43,6 +46,15 @@ def plan(intent: Dict) -> List[Dict]:
     
     elif action == 'urgent_reassign':
         return _plan_urgent_reassign(entities, parameters)
+    
+    elif action == 'add_pilot':
+        return _plan_add_pilot(entities, parameters)
+    
+    elif action == 'add_drone':
+        return _plan_add_drone(entities, parameters)
+    
+    elif action == 'add_mission':
+        return _plan_add_mission(entities, parameters)
     
     else:
         # Unknown intent - return basic info query
@@ -275,6 +287,96 @@ def _plan_urgent_reassign(entities: Dict, parameters: Dict) -> List[Dict]:
     return steps
 
 
+def _plan_add_pilot(entities: Dict, parameters: Dict) -> List[Dict]:
+    """
+    Plan steps for adding a new pilot.
+    """
+    steps = []
+    
+    # Step 1: Collect pilot information from original query
+    steps.append({
+        'tool': 'parse_pilot_info',
+        'params': {'entities': entities, 'parameters': parameters},
+        'description': 'Extracting pilot information from query'
+    })
+    
+    # Step 2: Add pilot to the system
+    steps.append({
+        'tool': 'add_pilot',
+        'params': {'pilot_data': parameters.get('pilot_data', {})},
+        'description': 'Adding new pilot to roster'
+    })
+    
+    # Step 3: Confirm addition
+    steps.append({
+        'tool': 'format_confirmation',
+        'params': {'action': 'add_pilot'},
+        'description': 'Formatting confirmation message'
+    })
+    
+    return steps
+
+
+def _plan_add_drone(entities: Dict, parameters: Dict) -> List[Dict]:
+    """
+    Plan steps for adding a new drone.
+    """
+    steps = []
+    
+    # Step 1: Collect drone information from original query
+    steps.append({
+        'tool': 'parse_drone_info',
+        'params': {'entities': entities, 'parameters': parameters},
+        'description': 'Extracting drone information from query'
+    })
+    
+    # Step 2: Add drone to the system
+    steps.append({
+        'tool': 'add_drone',
+        'params': {'drone_data': parameters.get('drone_data', {})},
+        'description': 'Adding new drone to fleet'
+    })
+    
+    # Step 3: Confirm addition
+    steps.append({
+        'tool': 'format_confirmation',
+        'params': {'action': 'add_drone'},
+        'description': 'Formatting confirmation message'
+    })
+    
+    return steps
+
+
+def _plan_add_mission(entities: Dict, parameters: Dict) -> List[Dict]:
+    """
+    Plan steps for adding a new mission.
+    """
+    steps = []
+    
+    # Step 1: Collect mission information from original query
+    steps.append({
+        'tool': 'parse_mission_info',
+        'params': {'entities': entities, 'parameters': parameters},
+        'description': 'Extracting mission information from query'
+    })
+    
+    # Step 2: Add mission to the system
+    steps.append({
+        'tool': 'add_mission',
+        'params': {'mission_data': parameters.get('mission_data', {})},
+        'description': 'Adding new mission to schedule'
+    })
+    
+    # Step 3: Confirm addition
+    steps.append({
+        'tool': 'format_confirmation',
+        'params': {'action': 'add_mission'},
+        'description': 'Formatting confirmation message'
+    })
+    
+    return steps
+
+
 def get_supported_intents() -> List[str]:
     """
     Return list of supported intent actions.
@@ -282,7 +384,7 @@ def get_supported_intents() -> List[str]:
     Returns:
         List of supported intent action names
     """
-    return ['query_info', 'assign_mission', 'urgent_reassign']
+    return ['query_info', 'assign_mission', 'urgent_reassign', 'add_pilot', 'add_drone', 'add_mission']
 
 
 def validate_intent(intent: Dict) -> tuple[bool, Optional[str]]:

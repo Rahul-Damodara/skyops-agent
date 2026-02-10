@@ -23,6 +23,9 @@ from agent.memory import agent_state
 
 # Import tools
 from tools.sheets import get_sheet_as_df, update_sheet_from_df
+from tools.pilots import add_new_pilot
+from tools.drones import add_new_drone
+from tools.missions import add_new_mission
 from intent_parser import parse_intent, parse_intent_with_llm
 
 load_dotenv()
@@ -128,6 +131,24 @@ def _execute_plan(execution_plan: List[Dict], intent: Dict) -> Dict:
             elif tool == 'set_urgent_mode':
                 agent_state['urgent_mode'] = params.get('urgent', False)
             
+            elif tool == 'parse_pilot_info':
+                context['new_pilot_data'] = _parse_pilot_info(intent)
+            
+            elif tool == 'add_pilot':
+                return _add_pilot_handler(context, steps_taken, intent)
+            
+            elif tool == 'parse_drone_info':
+                context['new_drone_data'] = _parse_drone_info(intent)
+            
+            elif tool == 'add_drone':
+                return _add_drone_handler(context, steps_taken, intent)
+            
+            elif tool == 'parse_mission_info':
+                context['new_mission_data'] = _parse_mission_info(intent)
+            
+            elif tool == 'add_mission':
+                return _add_mission_handler(context, steps_taken, intent)
+            
             elif tool == 'format_query_response':
                 return _format_query_response(context, params, steps_taken)
             
@@ -218,6 +239,28 @@ def _resolve_entities(params: Dict, context: Dict) -> Dict:
             resolved['mission'] = mission_match.iloc[0].to_dict()
         else:
             resolved['mission'] = None
+    
+    # Resolve from_mission (for reassignment)
+    from_mission_id = params.get('from_mission_id')
+    if from_mission_id and context['missions_df'] is not None:
+        from_mission_match = context['missions_df'][
+            context['missions_df']['project_id'].str.upper() == from_mission_id.upper()
+        ]
+        if not from_mission_match.empty:
+            resolved['from_mission'] = from_mission_match.iloc[0].to_dict()
+        else:
+            resolved['from_mission'] = None
+    
+    # Resolve to_mission (for reassignment)
+    to_mission_id = params.get('to_mission_id')
+    if to_mission_id and context['missions_df'] is not None:
+        to_mission_match = context['missions_df'][
+            context['missions_df']['project_id'].str.upper() == to_mission_id.upper()
+        ]
+        if not to_mission_match.empty:
+            resolved['to_mission'] = to_mission_match.iloc[0].to_dict()
+        else:
+            resolved['to_mission'] = None
     
     return resolved
 
@@ -352,8 +395,112 @@ def _validate_reassignment_step(context: Dict, params: Dict) -> Dict:
     """
     Validate reassignment operation.
     """
-    # Similar to validate_assignment but for reassignment
-    # For now, return success (implement full logic later)
+    resolved = context['resolved_entities']
+    
+    # Get the resource being reassigned (pilot or drone)
+    pilot = resolved.get('pilot')
+    drone = resolved.get('drone')
+    from_mission = resolved.get('from_mission')
+    to_mission = resolved.get('to_mission')
+    
+    # Check if entities were found
+    if not from_mission:
+        return {
+            'success': False,
+            'message': "Could not find the source mission",
+            'data': None,
+            'steps_taken': []
+        }
+    
+    if not to_mission:
+        return {
+            'success': False,
+            'message': "Could not find the target mission",
+            'data': None,
+            'steps_taken': []
+        }
+    
+    # At least one resource must be specified
+    if not pilot and not drone:
+        return {
+            'success': False,
+            'message': "Must specify either a pilot or drone to reassign",
+            'data': None,
+            'steps_taken': []
+        }
+    
+    # If reassigning to new mission, validate against new mission requirements
+    warnings = []
+    blocking_issues = []
+    
+    if pilot and to_mission:
+        # Check if pilot has required skills for new mission
+        required_skills = set(to_mission.get('required_skills', '').split(','))
+        required_skills = {s.strip() for s in required_skills if s.strip()}
+        
+        pilot_skills = set(pilot.get('skills', '').split(','))
+        pilot_skills = {s.strip() for s in pilot_skills if s.strip()}
+        
+        missing_skills = required_skills - pilot_skills
+        if missing_skills:
+            blocking_issues.append(
+                f"Pilot {pilot.get('name')} lacks required skills for new mission: {', '.join(missing_skills)}"
+            )
+        
+        # Check certifications
+        required_certs = set(to_mission.get('required_certs', '').split(','))
+        required_certs = {c.strip() for c in required_certs if c.strip()}
+        
+        pilot_certs = set(pilot.get('certifications', '').split(','))
+        pilot_certs = {c.strip() for c in pilot_certs if c.strip()}
+        
+        missing_certs = required_certs - pilot_certs
+        if missing_certs:
+            blocking_issues.append(
+                f"Pilot {pilot.get('name')} lacks required certifications: {', '.join(missing_certs)}"
+            )
+        
+        # Location warning
+        if pilot.get('location') != to_mission.get('location'):
+            warnings.append(
+                f"Location mismatch: Pilot in {pilot.get('location')}, mission in {to_mission.get('location')}"
+            )
+    
+    if drone and to_mission:
+        # Check drone status
+        if drone.get('status', '').lower() == 'maintenance':
+            blocking_issues.append(f"Drone {drone.get('drone_id')} is in maintenance")
+        
+        # Location warning
+        if drone.get('location') != to_mission.get('location'):
+            warnings.append(
+                f"Location mismatch: Drone in {drone.get('location')}, mission in {to_mission.get('location')}"
+            )
+    
+    # Store validation results
+    context['validation'] = {
+        'blocking_issues': blocking_issues,
+        'warnings': warnings
+    }
+    
+    # If urgent mode, only hard blocks prevent reassignment
+    if params.get('urgent') and blocking_issues:
+        issues_text = '\n'.join([f"❌ {issue}" for issue in blocking_issues])
+        return {
+            'success': False,
+            'message': f"Cannot complete urgent reassignment:\n\n{issues_text}",
+            'data': {'blocking_issues': blocking_issues, 'warnings': warnings},
+            'steps_taken': []
+        }
+    elif not params.get('urgent') and blocking_issues:
+        issues_text = '\n'.join([f"❌ {issue}" for issue in blocking_issues])
+        return {
+            'success': False,
+            'message': f"Reassignment validation failed:\n\n{issues_text}",
+            'data': {'blocking_issues': blocking_issues, 'warnings': warnings},
+            'steps_taken': []
+        }
+    
     return {'success': True}
 
 
@@ -361,11 +508,75 @@ def _execute_reassignment(context: Dict, steps_taken: List[str]) -> Dict:
     """
     Execute resource reassignment.
     """
-    # Implement reassignment logic here
+    resolved = context['resolved_entities']
+    validation = context.get('validation', {})
+    
+    pilot = resolved.get('pilot')
+    drone = resolved.get('drone')
+    from_mission = resolved.get('from_mission')
+    to_mission = resolved.get('to_mission')
+    
+    pilots_df = context.get('pilots_df')
+    drones_df = context.get('drones_df')
+    
+    # Track what was reassigned
+    reassigned_resources = []
+    
+    # Reassign pilot
+    if pilot and pilots_df is not None:
+        pilot_idx = pilots_df[pilots_df['pilot_id'] == pilot['pilot_id']].index[0]
+        old_assignment = pilots_df.at[pilot_idx, 'current_assignment']
+        pilots_df.at[pilot_idx, 'current_assignment'] = to_mission['project_id']
+        pilots_df.at[pilot_idx, 'status'] = 'Assigned'
+        reassigned_resources.append(f"Pilot {pilot['name']} from {from_mission['project_id']} to {to_mission['project_id']}")
+    
+    # Reassign drone
+    if drone and drones_df is not None:
+        drone_idx = drones_df[drones_df['drone_id'] == drone['drone_id']].index[0]
+        old_assignment = drones_df.at[drone_idx, 'current_assignment']
+        drones_df.at[drone_idx, 'current_assignment'] = to_mission['project_id']
+        drones_df.at[drone_idx, 'status'] = 'Assigned'
+        reassigned_resources.append(f"Drone {drone['drone_id']} from {from_mission['project_id']} to {to_mission['project_id']}")
+    
+    # Write back to Google Sheets
+    spreadsheet_id = os.getenv('SPREADSHEET_ID')
+    
+    if pilot and pilots_df is not None:
+        update_sheet_from_df(spreadsheet_id, os.getenv('PILOTS_SHEET_RANGE'), pilots_df)
+    
+    if drone and drones_df is not None:
+        update_sheet_from_df(spreadsheet_id, os.getenv('DRONES_SHEET_RANGE'), drones_df)
+    
+    # Build success message
+    warnings = validation.get('warnings', [])
+    warnings_text = ""
+    if warnings:
+        warnings_text = "\n\n⚠️  Warnings:\n" + '\n'.join([f"  • {w}" for w in warnings])
+    
+    reassignment_list = '\n'.join([f"  • {r}" for r in reassigned_resources])
+    
+    message = f"""🚨 Urgent Reassignment Completed!
+
+Reassigned:
+{reassignment_list}
+
+From Mission: {from_mission['project_id']} - {from_mission['client']}
+To Mission: {to_mission['project_id']} - {to_mission['client']}
+Target Location: {to_mission['location']}
+Duration: {to_mission['start_date']} to {to_mission['end_date']}{warnings_text}
+
+⚠️ Note: {from_mission['project_id']} may need new resource assignment."""
+    
     return {
         'success': True,
-        'message': "Reassignment feature coming soon",
-        'data': None,
+        'message': message,
+        'data': {
+            'pilot': pilot,
+            'drone': drone,
+            'from_mission': from_mission,
+            'to_mission': to_mission,
+            'warnings': warnings
+        },
         'steps_taken': steps_taken
     }
 
@@ -421,6 +632,122 @@ def _format_confirmation(context: Dict, params: Dict, steps_taken: List[str]) ->
         'success': True,
         'message': f"Action '{action}' completed successfully",
         'data': entities,
+        'steps_taken': steps_taken
+    }
+
+
+def _parse_pilot_info(intent: Dict) -> Dict:
+    """
+    Parse pilot information from the original query.
+    For now, prompts user for complete info via dialog.
+    """
+    # In a real app, you'd parse from query or show a form
+    # For demo, return a structure that the UI can handle
+    return {
+        'needs_input': True,
+        'required_fields': ['name', 'skills', 'certifications', 'location', 'available_from']
+    }
+
+
+def _add_pilot_handler(context: Dict, steps_taken: List[str], intent: Dict) -> Dict:
+    """
+    Handle adding a new pilot.
+    """
+    # For command-line style, provide instruction message
+    return {
+        'success': False,
+        'message': '''To add a new pilot, please provide the following information:
+
+**Required:**
+- Name
+- Skills (comma-separated, e.g., "Mapping, Survey")
+- Certifications (comma-separated, e.g., "DGCA, Night Ops")
+- Location (e.g., "Bangalore")
+
+**Optional:**
+- Available from (date in DD-MM-YYYY format)
+
+**Example command:**
+"Add pilot Rajesh with skills Inspection,Thermal, certs DGCA,Night Ops, location Mumbai, available from 15-02-2026"
+
+Or you can directly add to the Google Sheet:
+https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}''',
+        'data': None,
+        'steps_taken': steps_taken
+    }
+
+
+def _parse_drone_info(intent: Dict) -> Dict:
+    """
+    Parse drone information from the original query.
+    """
+    return {
+        'needs_input': True,
+        'required_fields': ['model', 'capabilities', 'location', 'maintenance_due']
+    }
+
+
+def _add_drone_handler(context: Dict, steps_taken: List[str], intent: Dict) -> Dict:
+    """
+    Handle adding a new drone.
+    """
+    return {
+        'success': False,
+        'message': '''To add a new drone, please provide the following information:
+
+**Required:**
+- Model (e.g., "DJI Phantom 4 Pro")
+- Capabilities (comma-separated, e.g., "RGB, Thermal")
+- Location (e.g., "Bangalore")
+
+**Optional:**
+- Maintenance due (date in DD-MM-YYYY format)
+
+**Example command:**
+"Add drone DJI Mavic 3 Pro with capabilities RGB,LiDAR at location Bangalore, maintenance due 01-06-2026"
+
+Or you can directly add to the Google Sheet:
+https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}''',
+        'data': None,
+        'steps_taken': steps_taken
+    }
+
+
+def _parse_mission_info(intent: Dict) -> Dict:
+    """
+    Parse mission information from the original query.
+    """
+    return {
+        'needs_input': True,
+        'required_fields': ['client', 'location', 'required_skills', 'required_certs', 'start_date', 'end_date', 'priority']
+    }
+
+
+def _add_mission_handler(context: Dict, steps_taken: List[str], intent: Dict) -> Dict:
+    """
+    Handle adding a new mission.
+    """
+    return {
+        'success': False,
+        'message': '''To add a new mission, please provide the following information:
+
+**Required:**
+- Client name
+- Location
+- Required skills (comma-separated)
+- Required certifications (comma-separated)
+- Start date (DD-MM-YYYY format)
+- End date (DD-MM-YYYY format)
+
+**Optional:**
+- Priority (High/Urgent/Standard)
+
+**Example command:**
+"Add mission for Client D at Hyderabad, requires Mapping,Survey skills, DGCA cert, from 20-02-2026 to 25-02-2026, priority High"
+
+Or you can directly add to the Google Sheet:
+https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}''',
+        'data': None,
         'steps_taken': steps_taken
     }
 

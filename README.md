@@ -110,6 +110,62 @@ System: [Validates emergency protocol]
         ℹ Mission Delta marked for new drone assignment
 ```
 
+## Usage Examples
+
+### Query Commands
+
+**Check pilot availability:**
+```
+Show me available pilots
+List all pilots
+Who is available?
+```
+
+**Check drone fleet:**
+```
+Show all drones
+List available drones
+What drones are in Bangalore?
+```
+
+**Check missions:**
+```
+What missions are active?
+Show all projects
+List missions
+```
+
+### Assignment Commands
+
+**Assign pilot and drone to mission:**
+```
+Assign Arjun to PRJ001 with Drone D001
+Schedule Neha for Project PRJ002 with D003
+Book Rohit with Drone D004 for mission PRJ003
+```
+
+### Urgent Reassignment
+
+**Move resources between missions:**
+```
+Urgent: Move Drone D001 from PRJ001 to PRJ002
+Reassign Arjun from PRJ001 to PRJ003
+Emergency: Transfer D003 from PRJ002 to PRJ001
+```
+
+### Add New Resources
+
+**Add resources (shows instructions):**
+```
+Add a new pilot
+Add a new drone
+Add a new mission
+```
+
+Then add directly to Google Sheet or use the provided Python functions.
+
+---
+
 ## Installation
 
 ```bash
@@ -132,6 +188,85 @@ streamlit run app.py
 1. **Google Sheets Setup**: Configure access to your Google Sheets containing operational data
 2. **LLM API**: Set up API keys for the language model (OpenAI, Anthropic, etc.)
 3. **Validation Rules**: Customize conflict detection rules in the configuration file
+
+---
+
+## Deployment to Streamlit Cloud
+
+### Prerequisites
+- GitHub account with your repository pushed
+- Streamlit Cloud account (free at [streamlit.io/cloud](https://streamlit.io/cloud))
+- Google Sheets with service account access configured
+
+### Step-by-Step Deployment
+
+#### 1. Prepare Your Repository
+```bash
+git add .
+git commit -m "Ready for deployment"
+git push origin main
+```
+
+#### 2. Create Streamlit Cloud App
+1. Go to [share.streamlit.io](https://share.streamlit.io)
+2. Sign in with GitHub
+3. Click "New app"
+4. Select repository: `Rahul-Damodara/skyops-agent`
+5. Branch: `main`
+6. Main file: `app.py`
+
+#### 3. Configure Secrets
+Click "Advanced settings" → "Secrets" and add:
+
+```toml
+# .streamlit/secrets.toml
+[gcp_service_account]
+type = "service_account"
+project_id = "skyops-agent"
+private_key_id = "your-private-key-id"
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "skyops-agent@skyops-agent.iam.gserviceaccount.com"
+client_id = "your-client-id"
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "your-cert-url"
+
+SPREADSHEET_ID = "your-spreadsheet-id"
+PILOT_RANGE = "pilot_roster!A:K"
+DRONE_RANGE = "drone_fleet!A:G"
+MISSION_RANGE = "missions!A:I"
+```
+
+> **Note**: Copy all fields from your `credentials.json` file into the `gcp_service_account` section
+
+#### 4. Deploy
+- Click "Deploy"
+- Wait 2-3 minutes for build completion
+- Your app will be live at: `https://your-app-name.streamlit.app`
+
+#### 5. Verify Deployment
+Test these commands:
+- ✅ "Show me all pilots"
+- ✅ "Assign Arjun to PRJ001 with Drone D001"
+- ✅ "Urgent: Move Drone D001 from PRJ001 to PRJ002"
+
+### Troubleshooting Deployment
+
+**Error: "Module not found"**
+- Ensure `requirements.txt` includes all dependencies
+- Check Python version compatibility (3.10+)
+
+**Error: "Google Sheets API access denied"**
+- Verify service account email has Editor access to your Google Sheet
+- Check credentials are properly formatted in secrets.toml
+
+**App crashes on startup**
+- Check Streamlit Cloud logs in the dashboard
+- Verify `SPREADSHEET_ID` is correct
+- Ensure all environment variables are set
+
+---
 
 ## Project Structure
 
