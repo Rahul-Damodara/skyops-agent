@@ -116,78 +116,380 @@ System: [Validates emergency protocol]
 
 **Check pilot availability:**
 ```
-Show me available pilots
-List all pilots
-Who is available?
+User: "Show me available pilots"
+
+Agent Response:
+📋 Current Pilots:
+┌──────────┬───────┬────────────┬──────────┬──────────────────────┐
+│ pilot_id │ name  │ location   │ status   │ drone_type_certified │
+├──────────┼───────┼────────────┼──────────┼──────────────────────┤
+│ P001     │ Arjun │ Bangalore  │ Active   │ Multirotor          │
+│ P002     │ Neha  │ Mumbai     │ Inactive │ Fixed-wing          │
+└──────────┴───────┴────────────┴──────────┴──────────────────────┘
+```
+
+**Other pilot queries:**
+```
+"List all pilots"
+"Who is available?"
+"Show pilots in Bangalore"
 ```
 
 **Check drone fleet:**
 ```
-Show all drones
-List available drones
-What drones are in Bangalore?
+User: "Show all drones"
+
+Agent Response:
+🚁 Current Drones:
+┌──────────┬────────────┬────────────┬────────────┐
+│ drone_id │ drone_type │ status     │ location   │
+├──────────┼────────────┼────────────┼────────────┤
+│ D001     │ Multirotor │ Available  │ Bangalore  │
+│ D002     │ Fixed-wing │ Maintenance│ Delhi      │
+└──────────┴────────────┴────────────┴────────────┘
+```
+
+**Other drone queries:**
+```
+"List available drones"
+"What drones are in Bangalore?"
+"Show drones under maintenance"
 ```
 
 **Check missions:**
 ```
-What missions are active?
-Show all projects
-List missions
+User: "What missions are active?"
+
+Agent Response:
+📅 Active Missions:
+┌────────────┬──────────────┬────────────┬───────────────┬───────────────┐
+│ mission_id │ mission_name │ location   │ pilot_assigned│ drone_assigned│
+├────────────┼──────────────┼────────────┼───────────────┼───────────────┤
+│ PRJ001     │ Survey North │ Bangalore  │ Arjun         │ D001          │
+│ PRJ002     │ Inspection   │ Mumbai     │ None          │ None          │
+└────────────┴──────────────┴────────────┴───────────────┴───────────────┘
 ```
 
 ### Assignment Commands
 
-**Assign pilot and drone to mission:**
+**Successful assignment:**
 ```
-Assign Arjun to PRJ001 with Drone D001
-Schedule Neha for Project PRJ002 with D003
-Book Rohit with Drone D004 for mission PRJ003
+User: "Assign Arjun to PRJ001 with Drone D001"
+
+Agent validates:
+✅ Arjun is available
+✅ D001 is available
+✅ Arjun is certified for Multirotor drones
+✅ D001 is in same location as mission
+
+Agent Response:
+✅ Assignment Successful!
+
+Mission PRJ001 has been assigned:
+  • Pilot: Arjun (P001)
+  • Drone: D001 (Multirotor)
+  • Location: Bangalore
+  • Scheduled: 2024-01-15 10:00
+
+Updated Google Sheets ✓
+```
+
+**Other assignment patterns:**
+```
+"Schedule Neha for Project PRJ002 with D003"
+"Book Rohit with Drone D004 for mission PRJ003"
+"Assign pilot P001 and drone D002 to PRJ001"
+```
+
+**Assignment with conflict:**
+```
+User: "Assign Arjun to PRJ002 with Drone D001"
+
+Agent Response:
+❌ Assignment Blocked - Conflicts Detected:
+
+BLOCKING ISSUES:
+  ⚠ Pilot Arjun is already assigned to PRJ001
+  ⚠ Drone D001 is already assigned to PRJ001
+
+Please resolve these conflicts before proceeding.
+```
+
+**Assignment with skill mismatch:**
+```
+User: "Assign Neha to PRJ001 with Drone D001"
+
+Agent Response:
+❌ Assignment Blocked - Conflicts Detected:
+
+BLOCKING ISSUES:
+  ⚠ Pilot Neha (certified: Fixed-wing) cannot operate 
+    Multirotor drone D001
+    
+Suggestion: Assign a pilot certified for Multirotor drones.
+```
+
+**Assignment with maintenance conflict:**
+```
+User: "Assign Arjun to PRJ003 with Drone D002"
+
+Agent Response:
+❌ Assignment Blocked - Conflicts Detected:
+
+BLOCKING ISSUES:
+  ⚠ Drone D002 is currently under maintenance
+  
+Suggestion: Choose a drone with status 'Available'.
 ```
 
 ### Urgent Reassignment
 
-**Move resources between missions:**
+**Move drone between missions:**
 ```
-Urgent: Move Drone D001 from PRJ001 to PRJ002
-Reassign Arjun from PRJ001 to PRJ003
-Emergency: Transfer D003 from PRJ002 to PRJ001
+User: "Urgent: Move Drone D001 from PRJ001 to PRJ002"
+
+Agent validates:
+✅ D001 is currently assigned to PRJ001
+✅ D001 is compatible with PRJ002
+✅ No conflicts with reassignment
+
+Agent Response:
+✅ Urgent Reassignment Successful!
+
+Drone D001 has been moved:
+  FROM: Mission PRJ001 (Survey North)
+  TO:   Mission PRJ002 (Inspection)
+
+⚠ WARNING: Mission PRJ001 now needs a new drone assignment!
+
+Updated Google Sheets ✓
+```
+
+**Move pilot between missions:**
+```
+User: "Reassign Arjun from PRJ001 to PRJ003"
+
+Agent Response:
+✅ Urgent Reassignment Successful!
+
+Pilot Arjun has been moved:
+  FROM: Mission PRJ001
+  TO:   Mission PRJ003
+
+⚠ WARNING: Mission PRJ001 now needs a new pilot assignment!
+
+Updated Google Sheets ✓
+```
+
+**Other urgent patterns:**
+```
+"Emergency: Transfer D003 from PRJ002 to PRJ001"
+"Urgent reassign: Move pilot P001 from PRJ001 to PRJ002"
 ```
 
 ### Add New Resources
 
-**Add resources (shows instructions):**
+**Add new pilot:**
 ```
-Add a new pilot
-Add a new drone
-Add a new mission
+User: "Add a new pilot"
+
+Agent Response:
+To add a new pilot, add a row to the pilot_roster sheet with these columns:
+  • pilot_id (e.g., P005)
+  • name
+  • contact
+  • license_number
+  • certification_level
+  • drone_type_certified
+  • location
+  • availability_status
+  • experience_years
+  • current_assignment (leave empty initially)
+  • last_flight_date
+
+Or use Python function:
+  add_new_pilot(name="Kavya", contact="9876543210", ...)
 ```
 
-Then add directly to Google Sheet or use the provided Python functions.
+**Add new drone:**
+```
+User: "Add a new drone"
+
+Agent Response:
+To add a new drone, add a row to the drone_fleet sheet with:
+  • drone_id (e.g., D005)
+  • drone_type
+  • status
+  • location
+  • payload_capacity_kg
+  • battery_status
+  • last_maintenance_date
+
+Or use Python function:
+  add_new_drone(drone_type="Multirotor", status="Available", ...)
+```
+
+**Add new mission:**
+```
+User: "Add a new mission"
+
+Agent Response:
+To add a new mission, add a row to the missions sheet with:
+  • mission_id (e.g., PRJ004)
+  • mission_name
+  • location
+  • scheduled_date
+  • scheduled_time
+  • pilot_assigned (initially None)
+  • drone_assigned (initially None)
+  • mission_status
+  • estimated_duration_hrs
+
+Or use Python function:
+  add_new_mission(mission_name="New Survey", location="Delhi", ...)
+```
+
+### Real-World Scenarios
+
+**Scenario 1: Morning briefing**
+```
+User: "Show me today's active missions"
+Agent: [Lists all missions scheduled for today with assignments]
+
+User: "Are all drones available?"
+Agent: [Lists drone status, highlights any in maintenance]
+
+User: "Who is available for emergency response?"
+Agent: [Lists pilots with 'Active' status and no current assignment]
+```
+
+**Scenario 2: Schedule new mission**
+```
+User: "Create a survey mission in Pune for tomorrow at 10 AM"
+Agent: [Explains how to add mission to Google Sheet]
+
+User: [Adds mission PRJ004 to sheet]
+
+User: "Assign Rohit to PRJ004 with Drone D003"
+Agent: ✅ [Validates and assigns resources]
+```
+
+**Scenario 3: Emergency reallocation**
+```
+User: "D001's battery just died - move it from PRJ001 to maintenance"
+Agent: [Updates drone status to Maintenance]
+
+User: "Urgent: Reassign D002 from PRJ003 to PRJ001"
+Agent: ✅ [Moves drone, warns about PRJ003 needing new drone]
+
+User: "Show available drones in Bangalore"
+Agent: [Lists D003 and D004 as options]
+
+User: "Assign D003 to PRJ003"
+Agent: ✅ [Completes fallback assignment]
+```
 
 ---
 
 ## Installation
 
+### Prerequisites
+- Python 3.10 or higher
+- Git
+- Google Cloud Project with Sheets API enabled
+- Google Sheets with drone operations data
+
+### Step 1: Clone Repository
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd skylark-drones
+git clone https://github.com/Rahul-Damodara/skyops-agent.git
+cd skyops-agent
+```
 
-# Install dependencies
+### Step 2: Set Up Python Environment
+```bash
+# Create conda environment (recommended)
+conda create -n skyops python=3.10
+conda activate skyops
+
+# Or use venv
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### Step 3: Install Dependencies
+```bash
 pip install -r requirements.txt
+```
 
-# Set up Google Sheets credentials
-# (Add instructions for Google Sheets API setup)
+### Step 4: Configure Google Sheets Access
 
-# Run the application
+1. **Create Google Cloud Service Account**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select existing
+   - Enable Google Sheets API
+   - Create Service Account credentials
+   - Download JSON key file
+
+2. **Share Google Sheet**:
+   - Open your Google Sheet
+   - Share with service account email (e.g., `skyops-agent@project.iam.gserviceaccount.com`)
+   - Grant "Editor" permissions
+
+3. **Save Credentials**:
+   - Save the JSON key file as `credentials.json` in project root
+   - **Important**: Never commit this file to Git (already in `.gitignore`)
+
+### Step 5: Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Google Sheets Configuration (REQUIRED)
+SPREADSHEET_ID=your-spreadsheet-id-here
+PILOT_RANGE=pilot_roster!A:K
+DRONE_RANGE=drone_fleet!A:G
+MISSION_RANGE=missions!A:I
+
+# LLM API Keys (OPTIONAL - fallback to keyword parser if not set)
+OPENAI_API_KEY=your-openai-key-here
+ANTHROPIC_API_KEY=your-anthropic-key-here
+```
+
+**To get your Spreadsheet ID**: Copy from the URL between `/d/` and `/edit`
+```
+https://docs.google.com/spreadsheets/d/SPREADSHEET_ID_HERE/edit
+```
+
+### Step 6: Run the Application
+```bash
 streamlit run app.py
 ```
 
+The app will open at `http://localhost:8501`
+
 ## Configuration
 
-1. **Google Sheets Setup**: Configure access to your Google Sheets containing operational data
-2. **LLM API**: Set up API keys for the language model (OpenAI, Anthropic, etc.)
-3. **Validation Rules**: Customize conflict detection rules in the configuration file
+### Google Sheets Data Format
+
+Your Google Sheet should have three tabs:
+
+**1. pilot_roster** (columns A-K):
+- pilot_id, name, contact, license_number, certification_level, drone_type_certified, location, availability_status, experience_years, current_assignment, last_flight_date
+
+**2. drone_fleet** (columns A-G):
+- drone_id, drone_type, status, location, payload_capacity_kg, battery_status, last_maintenance_date
+
+**3. missions** (columns A-I):
+- mission_id, mission_name, location, scheduled_date, scheduled_time, pilot_assigned, drone_assigned, mission_status, estimated_duration_hrs
+
+### LLM Configuration (Optional)
+
+The system works in two modes:
+
+1. **With LLM** (OpenAI/Anthropic): Natural language understanding for complex queries
+2. **Without LLM** (Keyword-based): Pattern matching for standard operations
+
+Both modes use **deterministic rules** for all operational decisions. The LLM only helps with intent parsing.
 
 ---
 
@@ -271,17 +573,38 @@ Test these commands:
 ## Project Structure
 
 ```
-skylark-drones/
-├── drone_fleet.csv         # Drone inventory and status
-├── missions.csv            # Mission scheduling data
-├── pilot_roster.csv        # Pilot information and availability
-├── app.py                  # Streamlit frontend
-├── agent.py                # Deterministic agent loop
-├── parser.py               # LLM intent parser
-├── validators.py           # Rule-based validation logic
-├── sheets_connector.py     # Google Sheets integration
-└── README.md              # This file
+skyops-agent/
+├── agent/
+│   ├── coordinator.py      # Main agent loop and execution engine
+│   ├── planner.py          # Intent-to-plan converter
+│   ├── rules.py            # Deterministic validation rules
+│   └── memory.py           # Simple state management
+├── tools/
+│   ├── sheets.py           # Google Sheets API wrapper
+│   ├── pilots.py           # Pilot roster management
+│   ├── drones.py           # Drone fleet management
+│   └── missions.py         # Mission scheduling management
+├── app.py                  # Streamlit frontend interface
+├── intent_parser.py        # LLM/keyword-based intent parser
+├── requirements.txt        # Python dependencies
+├── credentials.json        # Google service account (DO NOT COMMIT)
+├── .env                    # Environment variables (DO NOT COMMIT)
+├── README.md              # This file
+├── DECISION_LOG.md        # Architecture decisions and trade-offs
+├── IMPLEMENTATION_CHECKLIST.md  # Development progress tracking
+├── drone_fleet.csv        # Local drone data (optional)
+├── missions.csv           # Local mission data (optional)
+└── pilot_roster.csv       # Local pilot data (optional)
 ```
+
+### Key Files
+
+- **app.py**: Streamlit chat interface with data display and execution tracking
+- **agent/coordinator.py**: Main orchestration logic with execution functions
+- **agent/planner.py**: Converts user intents into actionable plans
+- **agent/rules.py**: Validation engine with 7 blocking rules + 2 warnings
+- **tools/sheets.py**: Google Sheets read/write operations
+- **intent_parser.py**: Natural language → structured intent conversion
 
 ## Important Notes
 
